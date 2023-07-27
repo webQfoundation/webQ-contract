@@ -12,7 +12,7 @@ interface IQRC {
      *
      * Note that `Q_signature` must be checked off-line.
      */
-    event EntryQRC(uint256 Q_address, bytes32 Q_message_hash, bytes Q_signature);
+    event EntryQRC(uint256 index, uint256 Q_address, bytes32 Q_message_hash, bytes Q_signature);
 
 
     /**
