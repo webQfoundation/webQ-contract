@@ -22,5 +22,5 @@ interface IQRC {
      *
      * Emits a {EntryQRC} event.
      */
-    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) external returns (bool);
+    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool);
 }
