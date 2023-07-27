@@ -19,7 +19,7 @@ abstract contract QRC is IQRC {
      * @dev entry for QRC transation.
      */
 
-    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) external returns (bool){
+    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
 
         _beforeQRC(Q_address, Q_message, Q_signature);
         
