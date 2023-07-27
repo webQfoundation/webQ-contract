@@ -10,6 +10,12 @@ import {IQRC} from "./IQRC.sol";
 abstract contract QRC is IQRC {
 
     /**
+     * @dev index of QRC transations.
+     */
+
+    uint256 public index = 0;
+
+    /**
      * @dev entry for QRC transation.
      */
 
@@ -17,7 +23,9 @@ abstract contract QRC is IQRC {
 
         _beforeQRC(Q_address, Q_message, Q_signature);
         
-        emit EntryQRC(Q_address, keccak256(Q_message), Q_signature);
+        emit EntryQRC(index, Q_address, keccak256(Q_message), Q_signature);
+
+        index += 1;
 
         _afterQRC(Q_address, Q_message, Q_signature);
 
