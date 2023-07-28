@@ -21,11 +21,6 @@ contract WebQ is Safe, QRC20 {
 
         }
 
-        if (nonce != 0){
-
-            return 0;
-
-        }
 
         
         while (totalSupply >= (MaxSupply - MaxSupply/(2**HalveTimes))){
