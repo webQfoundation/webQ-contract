@@ -10,6 +10,7 @@ contract WebQ is Safe, QRC20 {
         
         Q_address;
         value;
+        nonce;
 
         uint256 MaxSupply   = 21000000 ether;
         uint256 MintAmount  = 1000 ether; 
@@ -20,8 +21,6 @@ contract WebQ is Safe, QRC20 {
             return 0;
 
         }
-
-
         
         while (totalSupply >= (MaxSupply - MaxSupply/(2**HalveTimes))){
             
