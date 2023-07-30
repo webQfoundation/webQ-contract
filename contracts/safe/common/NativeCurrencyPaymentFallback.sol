@@ -12,7 +12,7 @@ abstract contract NativeCurrencyPaymentFallback {
      * @notice Receive function accepts native currency transactions.
      * @dev Emits an event with sender and received value.
      */
-    receive() external payable {
+    receive() external payable virtual {
         emit SafeReceived(msg.sender, msg.value);
     }
 }
