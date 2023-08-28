@@ -19,7 +19,7 @@ abstract contract QRC is IQRC {
      * @dev entry for QRC transation.
      */
 
-    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
+    function entryQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
 
         _beforeQRC(Q_address, Q_message, Q_signature);
         
@@ -35,10 +35,10 @@ abstract contract QRC is IQRC {
     /**
      * @dev Hook that is called before QRC handler. This may include handling authority check like Q_address blacklist/whitelist.
      */
-    function _beforeQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) internal virtual {}
+    function _beforeQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) internal virtual {}
 
     /**
      * @dev Hook that is called after QRC handler. This may include registering or storing QRC transaction.
      */
-    function _afterQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) internal virtual {}
+    function _afterQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) internal virtual {}
 }

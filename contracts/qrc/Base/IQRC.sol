@@ -12,7 +12,7 @@ interface IQRC {
      *
      * Note that `Q_signature` must be checked off-line.
      */
-    event EntryQRC(uint256 index, uint256 Q_address, bytes32 Q_message_hash, bytes Q_signature);
+    event EntryQRC(uint256 indexed index, bytes32 indexed Q_address, bytes32 Q_message_hash, bytes Q_signature);
 
 
     /**
@@ -22,5 +22,5 @@ interface IQRC {
      *
      * Emits a {EntryQRC} event.
      */
-    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool);
+    function entryQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool);
 }

@@ -13,7 +13,7 @@ interface IQRC20 is IQRC {
      * @dev calculate QRC minting amount.
      *
      * @param totalSupply current total supply of QRC20, given by calcultion from previous QRC txs.
-     * @param Q_address uint256 Q_address that sends the QRC tx.
+     * @param Q_address bytes32 Q_address that sends the QRC tx.
      * @param nonce uint256 current nonce for the Q_address. (nonce for QRC tx instead of wrapped tx.)
      * @param value uint256 carried value of the corresponding wrapped tx. 
      *
@@ -21,5 +21,5 @@ interface IQRC20 is IQRC {
      *
      * THIS FUNCTION SHALL BE STATIC.
      */
-    function mintQRC(uint256 totalSupply, uint256 Q_address, uint256 nonce, uint256 value) view external returns (uint256 amount);
+    function mintQRC(uint256 totalSupply, bytes32 Q_address, uint256 nonce, uint256 value) view external returns (uint256 amount);
 }

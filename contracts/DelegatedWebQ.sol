@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./safe/Safe.sol";
+import "./safe/common/NativeCurrencyPaymentFallback.sol";
 import "./qrc/QRC20/IQRC20.sol";
 
 
@@ -9,7 +10,7 @@ import "./qrc/QRC20/IQRC20.sol";
  * @title DelegatedWebQ - Web Q contract using delegated gnosis safe to reduce deployment costs.
  * @author 0xTroll
  */
-contract DelegatedWebQ is IQRC20 {
+contract DelegatedWebQ is IQRC20, NativeCurrencyPaymentFallback {
 
     // According to gnosis safe protocol, 
     // Singleton always needs to be first declared variable, to ensure that it is at the same location in the contracts to which calls are delegated.
@@ -45,43 +46,116 @@ contract DelegatedWebQ is IQRC20 {
     }
 
     /**
-     * @dev Record donation to Web-Q.fundation.
+     * @dev Index will be stored at keccak256("QRC_INDEXSlot").
+     * @dev Total Donation will be stored at keccak256("TOTAL_DONATION").
      */
-    event Donation(address donor, uint256 amount);
+    struct Uint256ValueSlot {
+        uint256 value;
+    }
+
 
     /**
-     * @dev Receive donation to Web-Q.fundation.
+     * @dev Record donation to Web-Q.fundation.
      */
-    receive() external payable {
-        if (msg.value > 0) {
-            emit Donation(msg.sender, msg.value);
+    event Donation(address donor, uint256 amount, uint256 totalDonation);
+
+
+    /**
+     * @dev Access to total donation.
+     */
+    function totalDonation() external view returns (uint256 donation){
+
+        bytes32 donationSlot= keccak256("TOTAL_DONATION");
+    
+        assembly {
+            donation := sload(donationSlot)
         }
+
     }
 
     /**
-     * @dev Index will be stored at keccak256("QRC_INDEX_SLOT").
+     * @dev Special NFT badges will be rewarded to initial donors to Web-Q.Foundation,
+     * @dev {ownerOf} function is for compatiblity with tokenGated ERC721 SeaDrop contract,
+     * @dev in order to remeber donors eligible to receive special NFT badges.
+     * @dev Only allowedMinter can mint the corresponding NFT.
+     * @dev Note that the snapshot of total donation is used as unique marker.
+     * @dev Note that the acutal NFT id is decided by the sequence of SeaDrop mingting. 
      */
-    struct IndexSlot {
-        uint256 value;
+    function ownerOf(uint256 uniqueMarker) external view returns (address allowedMinter){
+
+        bytes32 nftSlot= keccak256(abi.encodePacked("PENDING_SPECIAL_NFT", uniqueMarker));
+    
+        assembly {
+            allowedMinter := sload(nftSlot)
+        }
+
+    }
+
+    /**
+     * @dev Grant {to} with pending special NFT, which can be accessed by ownerOf function.
+     */
+    function _grantSpecialNFT(address to, uint256 uniqueMarker) internal {
+        
+        bytes32 nftSlot= keccak256(abi.encodePacked("PENDING_SPECIAL_NFT", uniqueMarker));
+
+        assembly {
+            sstore(nftSlot, to)
+        }
+
+    }
+
+
+    function donate() payable public{
+        Uint256ValueSlot storage donation;
+        
+        bytes32 donationSlot= keccak256("TOTAL_DONATION");
+
+        assembly {
+            donation.slot := donationSlot
+        }
+
+        if (msg.value > 0) {
+            emit Donation(msg.sender, msg.value, donation.value);
+        }
+
+        if (donation.value < 55 ether && msg.value >= 1 ether){
+        
+            _grantSpecialNFT(msg.sender, donation.value);
+        
+        } 
+
+        else if (donation.value < 205 ether && msg.value >= 5 ether){
+
+            _grantSpecialNFT(msg.sender, donation.value);
+
+        }
+
+        else if (msg.value >= 15 ether){
+            
+            _grantSpecialNFT(msg.sender, donation.value);
+
+        }
+
+        donation.value = donation.value + msg.value;
+
+
     }
 
     /**
      * @dev Implementation of  QRC entry interface.
      */
 
-    function entryQRC(uint256 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
+    function entryQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
 
-        IndexSlot storage index;
+        Uint256ValueSlot storage index;
         
-        bytes32 index_slot= keccak256("QRC_INDEX_SLOT");
+        bytes32 indexSlot= keccak256("QRC_INDEXSlot");
 
         assembly {
-            index.slot := index_slot
+            index.slot := indexSlot
         }
 
-        if (msg.value > 0) {
-            emit Donation(msg.sender, msg.value);
-        }
+        donate();
         
         emit EntryQRC(index.value, Q_address, keccak256(Q_message), Q_signature);
 
@@ -95,7 +169,7 @@ contract DelegatedWebQ is IQRC20 {
      * @dev Implementation of mintQRC
      */
 
-    function mintQRC(uint256 totalSupply, uint256 Q_address, uint256 nonce, uint256 value) pure external override returns (uint256 amount){
+    function mintQRC(uint256 totalSupply, bytes32 Q_address, uint256 nonce, uint256 value) pure external override returns (uint256 amount){
         Q_address;
         value;
         nonce;
