@@ -1,46 +1,89 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./nft/ERC721SeaDrop.sol";
-
-import "./nft/SeaDrop.sol";
-
 import "./nft/lib/SeaDropStructs.sol";
 
-contract ERC721SeaDropLegacyOwnable is ERC721SeaDrop {
+import "./nft/lib/ERC721SeaDropStructsErrorsAndEvents.sol";
 
-    constructor(
-        string memory name,
-        string memory symbol,
-        address[] memory allowedSeaDrop
-    )ERC721SeaDrop(name, symbol, allowedSeaDrop) {}
+import "./nft/openzeppelin-contracts/access/Ownable.sol";
 
-    function transferOwnership(address newPotentialOwner)
-        public
-        override
-        onlyOwner
-    {
-        if (newPotentialOwner == address(0)) {
-            revert NewOwnerIsZeroAddress();
-        }
-        _transferOwnership(newPotentialOwner);
-    }
+import { Clones } from "./nft/openzeppelin-contracts/proxy/Clones.sol";
 
+
+interface ISeaDrop {
+    function mintSigned(
+        address nftContract,
+        address feeRecipient,
+        address minterIfNotPayer,
+        uint256 quantity,
+        MintParams calldata mintParams,
+        uint256 salt,
+        bytes calldata signature
+    ) external payable;
+    function mintAllowedTokenHolder(
+        address nftContract,
+        address feeRecipient,
+        address minterIfNotPayer,
+        TokenGatedMintParams calldata mintParams
+    ) external payable;
+    function getAllowedNftTokenIdIsRedeemed(
+        address nftContract,
+        address allowedNftToken,
+        uint256 allowedNftTokenId
+    ) external view returns (bool);
 }
 
-contract WebQNFTHub {
+interface IERC721SeaDropClonable is ERC721SeaDropStructsErrorsAndEvents{
+    function setBaseURI(string calldata tokenURI) external;
+    function setContractURI(string calldata newContractURI) external;
+    function setMaxSupply(uint256 newMaxSupply) external;
+    function updateSignedMintValidationParams(
+        address seaDropImpl,
+        address signer,
+        SignedMintValidationParams memory signedMintValidationParams
+    ) external;
+    function updatePayer(address seaDropImpl, address payer, bool allowed) external;
+    function updateAllowedFeeRecipient(address seaDropImpl, address feeRecipient, bool allowed) external;
+    function updateTokenGatedDrop(address seaDropImpl, address allowedNftToken, TokenGatedDropStage calldata dropStage) external;
+    function getMintStats(address minter)
+        external
+        view
+        returns (
+            uint256 minterNumMinted,
+            uint256 currentTotalSupply,
+            uint256 maxSupply
+        );
+    function transferOwnership(address newPotentialOwner) external;
+    function multiConfigure(MultiConfigureStruct calldata config) external;
+    function initialize(
+        string calldata __name,
+        string calldata __symbol,
+        address[] calldata allowedSeaDrop,
+        address initialOwner
+    ) external;
+}
 
-    ERC721SeaDropLegacyOwnable public NFT;
+interface WebQ {
+    function donate(address donor) payable external returns (uint256 donation, uint256 mintable);
+    function ownerOf(uint256 uniqueMarker) external view returns (address allowedMinter);
+    function mintableSupply() external view returns (uint256 mintable);
+}
 
-    ERC721SeaDropLegacyOwnable public spNFT;
+contract WebQNFTHub is Ownable, ERC721SeaDropStructsErrorsAndEvents {
 
-    SeaDrop internal seaDrop;
+    IERC721SeaDropClonable public NFT;
 
-    address internal webQBase;
+    IERC721SeaDropClonable public spNFT;
 
-    constructor(address seaDrop_, 
-                address webQBase_,
+    ISeaDrop public seaDrop;
+
+    address public webQBase;
+
+
+    constructor(address seaDropImplementation, 
+                address webQBaseImplementation,
                 address signer,
+                address seaDropCloneableImplementation,
                 string memory contractURIforNFT,
                 string memory baseURIforNFT,
                 string memory contractURIforspNFT,
@@ -49,13 +92,20 @@ contract WebQNFTHub {
 
         address[] memory allowedSeaDrop = new address [] (1);
 
-        seaDrop = SeaDrop(seaDrop_);
+        seaDrop = ISeaDrop(seaDropImplementation);
 
-        webQBase= webQBase_;
+        webQBase= webQBaseImplementation;
 
-        allowedSeaDrop[0] = seaDrop_;
+        allowedSeaDrop[0] = seaDropImplementation;
 
-        NFT = new ERC721SeaDropLegacyOwnable('WebQ NFT Badger', 'WebQ NFT', allowedSeaDrop);
+        NFT = IERC721SeaDropClonable(Clones.clone(seaDropCloneableImplementation));
+
+        NFT.initialize(
+                'Web-Q NFT Badger',
+                'Web-Q NFT',
+                allowedSeaDrop,
+                address(this)
+            );
 
         SignedMintValidationParams memory signValidationSetup = SignedMintValidationParams(
             0    ,//uint80 minMintPrice; 
@@ -74,16 +124,23 @@ contract WebQNFTHub {
         NFT.setMaxSupply(10000);
 
         NFT.updateSignedMintValidationParams(
-            seaDrop_,
+            seaDropImplementation,
             signer,
             signValidationSetup
         );
 
-        NFT.updatePayer(seaDrop_, address(this), true);
+        NFT.updatePayer(seaDropImplementation, address(this), true);
        
-        NFT.transferOwnership(webQBase);
+        NFT.updateAllowedFeeRecipient(seaDropImplementation, webQBase, true);
 
-        spNFT = new ERC721SeaDropLegacyOwnable('WebQ Special NFT Badger', 'WebQ spNFT', allowedSeaDrop);
+        spNFT = IERC721SeaDropClonable(Clones.clone(seaDropCloneableImplementation));
+
+        spNFT.initialize(
+            'Web-Q Special NFT Badger',
+            'Web-Q spNFT',
+            allowedSeaDrop,
+            address(this)
+        );
 
         TokenGatedDropStage memory tokenGatedSetup = TokenGatedDropStage(
             0    ,//uint80 mintPrice; 
@@ -99,7 +156,7 @@ contract WebQNFTHub {
         spNFT.setMaxSupply(108);
 
         spNFT.updateTokenGatedDrop(
-            seaDrop_,
+            seaDropImplementation,
             webQBase, 
             tokenGatedSetup
         );
@@ -108,23 +165,13 @@ contract WebQNFTHub {
 
         spNFT.setBaseURI(baseURIforspNFT);
 
-        spNFT.updatePayer(seaDrop_, address(this), true);
+        spNFT.updatePayer(seaDropImplementation, address(this), true);
 
-        spNFT.transferOwnership(webQBase);
-
-        _DOMAIN_SEPARATOR = _deriveDomainSeparator();
+        spNFT.updateAllowedFeeRecipient(seaDropImplementation, webQBase, true);
 
     }
 
-
-    /**
-     * @dev Internal view for NFT mintParams.
-     */
-    MintParams internal _mintParams = MintParams(
-        0,1,0,type(uint256).max,1,10000,0,false
-    );
-
-
+    
     /**
      * @dev Check if salt is used for NFT minting.
      */
@@ -134,179 +181,122 @@ contract WebQNFTHub {
     /**
      * @dev Record routed minting history.
      */
-    event RoutedMint(address from, uint256 salt, uint256 spGrant);
+    event MintNFT(address from, address nftContract, uint256 spGrant);
 
 
     /**
      * @dev Mint NFTs and special NFTs in one function.
+     *
+     * @param grantedNFT last index of NFT to be minted.
+     * @param signature server-side signature to mint NFT.
+     * @param grantedSpNFTs ids of spNFT to be minted (not the final NFT id). Should be checked using claimableSpNFT.
      */
-    function batchMintNFT(uint256[] calldata salts, bytes[] calldata signatures, uint256[] calldata spGrants) external {
+    function mintNFT(uint256 grantedNFT, bytes calldata signature, uint256[] calldata grantedSpNFTs) external {
         
-        for (uint i=0; i<salts.length; i++){
-            
-            if (!saltUsed[salts[i]]){
-                
-                seaDrop.mintSigned(address(NFT), msg.sender, msg.sender, 1, _mintParams, salts[i], signatures[i]);
-                
-                saltUsed[salts[i]] = true;
+        (uint256 _mintedNFT,,) = NFT.getMintStats(msg.sender); 
 
-                emit RoutedMint(msg.sender, salts[i], type(uint256).max);
-
-            }
-
+        if (grantedNFT > _mintedNFT){
+            MintParams memory _mintParams = MintParams(
+                0,grantedNFT,0,4070880000,1,10000,0,true
+            );
+            seaDrop.mintSigned(
+                address(NFT), //nftContract
+                webQBase, //feeRecipient
+                msg.sender, //minter
+                grantedNFT - _mintedNFT, //quantity
+                _mintParams, //mintParams
+                uint256(uint160(msg.sender)) + grantedNFT,  //salt
+                signature
+                );
         }
 
-        seaDrop.mintAllowedTokenHolder(address(spNFT), msg.sender, msg.sender, TokenGatedMintParams(webQBase, spGrants));
-
-        for (uint i=0; i<spGrants.length; i++) emit RoutedMint(msg.sender, type(uint256).max, spGrants[i]);
-
-    }
-
-    /// @notice Internal constants for EIP-712: Typed structured
-    ///         data hashing and signing
-    bytes32 internal constant _SIGNED_MINT_TYPEHASH =
-        // prettier-ignore
-        keccak256(
-             "SignedMint("
-                "address nftContract,"
-                "address minter,"
-                "address feeRecipient,"
-                "MintParams mintParams,"
-                "uint256 salt"
-            ")"
-            "MintParams("
-                "uint256 mintPrice,"
-                "uint256 maxTotalMintableByWallet,"
-                "uint256 startTime,"
-                "uint256 endTime,"
-                "uint256 dropStageIndex,"
-                "uint256 maxTokenSupplyForStage,"
-                "uint256 feeBps,"
-                "bool restrictFeeRecipients"
-            ")"
-        );
-    bytes32 internal constant _MINT_PARAMS_TYPEHASH =
-        // prettier-ignore
-        keccak256(
-            "MintParams("
-                "uint256 mintPrice,"
-                "uint256 maxTotalMintableByWallet,"
-                "uint256 startTime,"
-                "uint256 endTime,"
-                "uint256 dropStageIndex,"
-                "uint256 maxTokenSupplyForStage,"
-                "uint256 feeBps,"
-                "bool restrictFeeRecipients"
-            ")"
-        );
-    bytes32 internal constant _EIP_712_DOMAIN_TYPEHASH =
-        // prettier-ignore
-        keccak256(
-            "EIP712Domain("
-                "string name,"
-                "string version,"
-                "uint256 chainId,"
-                "address verifyingContract"
-            ")"
-        );
-    bytes32 internal constant _NAME_HASH = keccak256("SeaDrop");
-    bytes32 internal constant _VERSION_HASH = keccak256("1.0");
-    uint256 internal immutable _CHAIN_ID = block.chainid;
-    bytes32 internal immutable _DOMAIN_SEPARATOR;
-
-    /**
-     * @dev Internal view function to get the EIP-712 domain separator. If the
-     *      chainId matches the chainId set on deployment, the cached domain
-     *      separator will be returned; otherwise, it will be derived from
-     *      scratch.
-     *
-     * @return The domain separator.
-     */
-    function _domainSeparator() internal view returns (bytes32) {
-        // prettier-ignore
-        return block.chainid == _CHAIN_ID
-            ? _DOMAIN_SEPARATOR
-            : _deriveDomainSeparator();
+        if  (grantedSpNFTs.length > 0){
+            seaDrop.mintAllowedTokenHolder(address(spNFT), webQBase, msg.sender, TokenGatedMintParams(webQBase, grantedSpNFTs));
+        }
     }
 
     /**
-     * @dev Internal view function to derive the EIP-712 domain separator.
+     * @dev Donate to web-q.foundation and mint special NFTs within one transcation.
      *
-     * @return The derived domain separator.
      */
-    function _deriveDomainSeparator() internal view returns (bytes32) {
-        // prettier-ignore
-        return keccak256(
-            abi.encode(
-                _EIP_712_DOMAIN_TYPEHASH,
-                _NAME_HASH,
-                _VERSION_HASH,
-                block.chainid,
-                address(this)
-            )
-        );
-    }
-
-    /**
-     * @notice Verify an EIP-712 signature by recreating the data structure
-     *         that we signed on the client side, and then using that to recover
-     *         the address that signed the signature for this data.
-     *
-     * @param nftContract  The nft contract.
-     * @param minter       The mint recipient.
-     * @param feeRecipient The fee recipient.
-     * @param mintParams   The mint params.
-     * @param salt         The salt for the signed mint.
-     */
-    function _getDigest(
-        address nftContract,
-        address minter,
-        address feeRecipient,
-        MintParams memory mintParams,
-        uint256 salt
-    ) internal view returns (bytes32 digest) {
-        bytes32 mintParamsHashStruct = keccak256(
-            abi.encode(
-                _MINT_PARAMS_TYPEHASH,
-                mintParams.mintPrice,
-                mintParams.maxTotalMintableByWallet,
-                mintParams.startTime,
-                mintParams.endTime,
-                mintParams.dropStageIndex,
-                mintParams.maxTokenSupplyForStage,
-                mintParams.feeBps,
-                mintParams.restrictFeeRecipients
-            )
-        );
-        digest = keccak256(
-            bytes.concat(
-                bytes2(0x1901),
-                _domainSeparator(),
-                keccak256(
-                    abi.encode(
-                        _SIGNED_MINT_TYPEHASH,
-                        nftContract,
-                        minter,
-                        feeRecipient,
-                        mintParamsHashStruct,
-                        salt
-                    )
-                )
-            )
-        );
-    }
-
-
-    /*
-     * @notice prepare data for server to sign.
-     *
-     * @return digest  The corresponding bytes32 data to sign.
-     */
-    function getMintDigested(address minter, uint256 salt) external view returns(bytes32 digest){
+    function donationAndMint() external payable {
+        uint256 oldMintable    = WebQ(webQBase).mintableSupply();
         
-        digest = _getDigest(address(NFT), minter, minter, _mintParams, salt);
+        (,uint256 newMintable) = WebQ(webQBase).donate{value: msg.value}(msg.sender);
+        
+        if (newMintable > oldMintable){
+            uint256 [] memory grantedSpNFTs = new uint256[](newMintable - oldMintable);
+            for (uint i = oldMintable; i < newMintable; i++){
+                grantedSpNFTs[i-oldMintable] = i + 1;
+            }
 
+            seaDrop.mintAllowedTokenHolder(address(spNFT), webQBase, msg.sender, TokenGatedMintParams(webQBase, grantedSpNFTs));
+        }
     }
 
+    /**
+     * @dev Check how many NFTs that have been minted by minter.
+     *
+     * @param minter whoever wants to mint spNFT.
+     *
+     * @return minted quantity of NFTs minted by minter.
+     */
+    function mintedNFT(address minter) external view returns(uint256 minted){
+        (minted,,) = NFT.getMintStats(minter); 
+    }
+
+    /**
+     * @dev Mint NFTs and special NFTs in one function.
+     *
+     * @param minter whoever wants to mint spNFT.
+     * @param grantedSpNFTs ids of spNFT to be checked.
+     *
+     * @return mintableSpNFTs ids of spNFT can be minted (not the final NFT id).
+     */
+    function claimableSpNFT(address minter, uint256[] calldata grantedSpNFTs) external view returns(uint256[] memory mintableSpNFTs){
+        uint256[] memory mintableSpNFTsPadded = new uint256[](grantedSpNFTs.length);
+        uint256 mintableSpNFTsLength = 0;
+        for (uint i=0; i<grantedSpNFTs.length; i++) {
+            if (WebQ(webQBase).ownerOf(grantedSpNFTs[i]) == minter && 
+                !seaDrop.getAllowedNftTokenIdIsRedeemed(
+                    address(spNFT), webQBase, grantedSpNFTs[i]
+                    )){
+                        mintableSpNFTsPadded[mintableSpNFTsLength] = grantedSpNFTs[i];
+                        mintableSpNFTsLength += 1;
+                    }
+        }
+        mintableSpNFTs = new uint256[](mintableSpNFTsLength);
+        for (uint i=0; i<mintableSpNFTsLength; i++){
+            mintableSpNFTs[i] = mintableSpNFTsPadded[i];
+        }
+    }
+
+    /**
+     * @dev Transfer ownership of NFT contract in case of crtitial bugs.
+     *
+     * @param to to whom transfer ownership
+     */
+    function transferNftOwnership(address to)
+        external
+        onlyOwner{
+            spNFT.transferOwnership(to);
+            NFT.transferOwnership(to);
+        }
+
+    /**
+     * @dev Configure multiple properties at a time.
+     *
+     * @param isSpNFT true: config spNFT, false: config NFT.
+     * @param config The configuration struct.
+     */
+    function multiConfigure(bool isSpNFT,MultiConfigureStruct calldata config)
+        external
+        onlyOwner{
+            if (isSpNFT){
+                spNFT.multiConfigure(config);
+            } else {
+                NFT.multiConfigure(config);
+            }
+        }
     
 }

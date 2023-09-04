@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./safe/Safe.sol";
 import "./safe/common/NativeCurrencyPaymentFallback.sol";
 import "./qrc/QRC20/IQRC20.sol";
 
@@ -25,6 +24,19 @@ contract DelegatedWebQ is IQRC20, NativeCurrencyPaymentFallback {
         safe = _singleton;
     }
 
+    /**
+     * @notice Since we are using delegated Gnosis Safe Protocol, specific low-level storage slots shall be used for information storage.
+     */
+
+    bytes32 private constant DonationSlot = keccak256("web-q.foundation.donation");
+
+    bytes32 private constant QRCIndexSlot = keccak256("web-q.foundation.index");
+
+    bytes32 private constant SpNFTSlotPrf = keccak256("web-q.foundation.spnft.allowedMinter");
+
+    bytes32 private constant MintableSlot = keccak256("web-q.foundation.spnft.mintable");
+
+
     /// @dev Fallback function forwards all transactions and returns all received return data.
     fallback() external payable {
         // solhint-disable-next-line no-inline-assembly
@@ -45,32 +57,66 @@ contract DelegatedWebQ is IQRC20, NativeCurrencyPaymentFallback {
         }
     }
 
-    /**
-     * @dev Index will be stored at keccak256("QRC_INDEXSlot").
-     * @dev Total Donation will be stored at keccak256("TOTAL_DONATION").
-     */
-    struct Uint256ValueSlot {
-        uint256 value;
-    }
-
 
     /**
-     * @dev Record donation to Web-Q.fundation.
+     * @dev Total donation donated to Web-Q.fundation.
      */
     event Donation(address donor, uint256 amount, uint256 totalDonation);
+
+    /**
+     * @dev Grant spNFT for donors who make considerable contribution.
+     */
+    event GrantSpNFT(address donor, uint256 mintId);
 
 
     /**
      * @dev Access to total donation.
      */
     function totalDonation() external view returns (uint256 donation){
+        bytes32 _donationSlot = DonationSlot;
 
-        bytes32 donationSlot= keccak256("TOTAL_DONATION");
-    
         assembly {
-            donation := sload(donationSlot)
+            donation := sload(_donationSlot)
         }
 
+    }
+
+    /**
+     * @dev How many spNft can be minted.
+     */
+    function mintableSupply() external view returns (uint256 mintable){
+        bytes32 _mintableSlot = MintableSlot;
+
+        assembly {
+            mintable := sload(_mintableSlot) 
+        }
+    }
+
+    /**
+     * @dev Calculate how much donation required to mint {deltaAmount} spNFT when current supply is {supplyAmount} .
+     */
+    function donationForSpNfts(uint256 deltaAmount, uint256 supplyAmount) internal pure returns (uint256 donationRequired){
+
+        uint256 nextAmount = deltaAmount + supplyAmount;
+
+        
+        donationRequired = ((nextAmount**2 - supplyAmount **2) * 25  + (nextAmount - supplyAmount) * 975) * 1e15;
+
+    }
+
+    /**
+     * @dev Calculate how much donation required to mint {deltaAmount} spNFT .
+     */
+    function donationForSpNfts(uint256 deltaAmount) external view returns (uint256 donationRequired){
+        uint256 mintable;
+
+        bytes32 _mintableSlot = MintableSlot;
+
+        assembly {
+            mintable := sload(_mintableSlot) 
+        }
+
+        donationRequired = donationForSpNfts(deltaAmount, mintable);
     }
 
     /**
@@ -83,90 +129,100 @@ contract DelegatedWebQ is IQRC20, NativeCurrencyPaymentFallback {
      */
     function ownerOf(uint256 uniqueMarker) external view returns (address allowedMinter){
 
-        bytes32 nftSlot= keccak256(abi.encodePacked("PENDING_SPECIAL_NFT", uniqueMarker));
+        bytes32 _nftSlot= keccak256(abi.encodePacked(SpNFTSlotPrf, uniqueMarker));
     
         assembly {
-            allowedMinter := sload(nftSlot)
+            allowedMinter := sload(_nftSlot)
         }
 
     }
 
     /**
-     * @dev Grant {to} with pending special NFT, which can be accessed by ownerOf function.
+     * @dev Grant {to} with pending special NFT, which can be accessed by ownerOf function with {uniqueMarker} as minting id.
      */
     function _grantSpecialNFT(address to, uint256 uniqueMarker) internal {
         
-        bytes32 nftSlot= keccak256(abi.encodePacked("PENDING_SPECIAL_NFT", uniqueMarker));
+        bytes32 _nftSlot= keccak256(abi.encodePacked(SpNFTSlotPrf, uniqueMarker));
 
         assembly {
-            sstore(nftSlot, to)
+            sstore(_nftSlot, to)
         }
 
+        emit GrantSpNFT(to, uniqueMarker);
     }
 
-
-    function donate() payable public{
-        Uint256ValueSlot storage donation;
-        
-        bytes32 donationSlot= keccak256("TOTAL_DONATION");
+    /**
+     * @dev Handle donation, trying to grant special NFTs.
+     * @dev visit https://web-q.foundation for more information.
+     */
+    function donate(address donor) payable public returns (uint256 donation, uint256 mintable){
+        bytes32 _donationSlot = DonationSlot;
+        bytes32 _mintableSlot = MintableSlot;
 
         assembly {
-            donation.slot := donationSlot
+            donation := sload(_donationSlot)
+            mintable := sload(_mintableSlot) 
         }
 
-        if (msg.value > 0) {
-            emit Donation(msg.sender, msg.value, donation.value);
+        uint256 _value = msg.value;
+        uint256 _threshold;
+
+        if (_value > 0) {
+            emit Donation(donor, _value, donation);
         }
 
-        if (donation.value < 55 ether && msg.value >= 1 ether){
+        while (mintable < 108) {
+            _threshold = donationForSpNfts(1, mintable);
+            if (_value >= _threshold){
+                _value -= _threshold;
+                mintable += 1;
+                _grantSpecialNFT(donor, mintable);
+            } else{
+                break;
+            }
+        }
         
-            _grantSpecialNFT(msg.sender, donation.value);
-        
-        } 
+        donation += msg.value;
 
-        else if (donation.value < 205 ether && msg.value >= 5 ether){
-
-            _grantSpecialNFT(msg.sender, donation.value);
-
+        assembly {
+            sstore(_donationSlot, donation)
+            sstore(_mintableSlot, mintable)
         }
-
-        else if (msg.value >= 15 ether){
-            
-            _grantSpecialNFT(msg.sender, donation.value);
-
-        }
-
-        donation.value = donation.value + msg.value;
-
-
     }
 
     /**
      * @dev Implementation of  QRC entry interface.
+     * @dev visit https://web-q.foundation for more information.
+     * Note that donation is triggered to handle donation.
      */
 
     function entryQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
 
-        Uint256ValueSlot storage index;
+        uint256 index;
         
-        bytes32 indexSlot= keccak256("QRC_INDEXSlot");
+        bytes32 indexSlot = QRCIndexSlot;
 
         assembly {
-            index.slot := indexSlot
+            index := sload(indexSlot)
         }
 
-        donate();
+        donate(msg.sender);
         
-        emit EntryQRC(index.value, Q_address, keccak256(Q_message), Q_signature);
+        emit EntryQRC(index, Q_address, keccak256(Q_message), Q_signature);
 
-        index.value = index.value + 1;
+        index += 1;
+
+        assembly {
+            sstore(indexSlot, index)
+        }
 
         return true;
     }
 
 
      /**
-     * @dev Implementation of mintQRC
+     * @dev Implementation of mintQRC, according to QRC-20 protocol.
+     * @dev visit https://web-q.foundation for more information.
      */
 
     function mintQRC(uint256 totalSupply, bytes32 Q_address, uint256 nonce, uint256 value) pure external override returns (uint256 amount){
