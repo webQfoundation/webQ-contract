@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./safe/Safe.sol";
-import "./qrc/QRC20/QRC20.sol";
+import "../safe/Safe.sol";
+import "../qrc/QRC20/QRC20.sol";
 
 contract WebQ is Safe, QRC20 {
     /**
@@ -65,9 +65,7 @@ contract WebQ is Safe, QRC20 {
         Q_address;
         Q_message;
         Q_signature;
-        if (msg.value> 0) {
-            emit Donation(msg.sender, msg.value, totalDonation);
-        }
+        donate();
     }
 
     function mintQRC(uint256 totalSupply, bytes32 Q_address, uint256 nonce, uint256 value) pure external override returns (uint256 amount){
