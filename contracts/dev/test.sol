@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./qrc/QRC20/IQRC20.sol";
+import "../qrc/QRC20/IQRC20.sol";
 
-
-/**
- * @title WebQ - Web Q contract with gnosis {safe} account as fund receiver.
- * @author 0xTroll
- */
-contract WebQ is IQRC20 {
+contract TestWebQ is IQRC20 {
 
     // Foundation address is safe account.
     address payable public safe;
@@ -101,8 +96,6 @@ contract WebQ is IQRC20 {
         
         allowedMinterForMintId[mintId] = to;
 
-        emit GrantSpNFT(to, mintId);
-
     }
 
     /**
@@ -111,7 +104,6 @@ contract WebQ is IQRC20 {
      */
     function donate(address donor) payable public returns (uint256 donation, uint256 mintable){
         
-        //storage -> memory
         mintable = mintableSupply;
 
         uint256 _value = msg.value;
@@ -125,7 +117,7 @@ contract WebQ is IQRC20 {
             _threshold = donationForSpNfts(1, mintable);
             if (_value >= _threshold){
                 _value -= _threshold;
-                mintable += 1;
+                mintableSupply += 1;
                 _grantSpecialNFT(donor, mintable);
             } else{
                 break;
@@ -136,7 +128,6 @@ contract WebQ is IQRC20 {
 
         donation = totalDonation;
 
-        //memory -> storage 
         mintableSupply = mintable;
 
         (bool success, ) = safe.call{value: msg.value}("");
@@ -152,7 +143,7 @@ contract WebQ is IQRC20 {
 
     function entryQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool){
 
-        donate(msg.sender);
+        //donate(msg.sender);
         
         emit EntryQRC(qrcIndex, Q_address, keccak256(Q_message), Q_signature);
 

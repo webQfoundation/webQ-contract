@@ -1,7 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./qrc/QRC20/IQRC20.sol";
+/**
+ * @dev Interface of the QRC Protocol.
+ */
+interface IQRC {
+    /**
+     * @dev Emitted when receciving QRC Transaction.
+     *
+     * Note that `Q_signature` must be checked off-line.
+     */
+    event EntryQRC(uint256 indexed index, bytes32 indexed Q_address, bytes32 Q_message_hash, bytes Q_signature);
+
+
+    /**
+     * @dev invoke an QRC transaction from `Q_address`, with message `Q_message` and signature `Q_signature`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {EntryQRC} event.
+     */
+    function entryQRC(bytes32 Q_address, bytes memory Q_message, bytes calldata Q_signature) payable external returns (bool);
+}
+
+interface IQRC20 is IQRC {
+    /**
+     * @dev calculate QRC minting amount.
+     *
+     * @param totalSupply current total supply of QRC20, given by calcultion from previous QRC txs.
+     * @param Q_address bytes32 Q_address that sends the QRC tx.
+     * @param nonce uint256 current nonce for the Q_address. (nonce for QRC tx instead of wrapped tx.)
+     * @param value uint256 carried value of the corresponding wrapped tx. 
+     *
+     * @return amount uint256 value indicating the amount of minted token.
+     *
+     * THIS FUNCTION SHALL BE STATIC.
+     */
+    function mintQRC(uint256 totalSupply, bytes32 Q_address, uint256 nonce, uint256 value) view external returns (uint256 amount);
+}
+
 
 
 /**

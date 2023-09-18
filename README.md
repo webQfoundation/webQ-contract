@@ -15,9 +15,19 @@ This repository is a monorepo including the QRC-20 protocol smart contracts.
 | Contracts                                             | Base                                                                                                                     | Description                                                          |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 |    QRC-20    |   QRC-Base       | Basic implemention of QRC-20 protocol           |
-|     WebQ      |     Gnosis Safe     | Entry to Web-Q.Foundation, secured by gnosis-safe multi-sign contract      |
+|     WebQ      |     QRC-20     | Entry to Web-Q.Foundation, secured by gnosis-safe multi-sign contract      |
 |      DelegatedWebQ     |    -      | Delegate yet equivalent  WebQ    |
 |      WebQ NFT Hub     |     ERC721SeaDrop      | NFT contract under opensea standard |
+
+## Deploys
+
+| Contracts                                             | Base                                                                                                                     | Address                                                          |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+|    Fundation    |   Gnosis Safe       | 0xD0A507a12721a2f5332991A0D280b2149C108EE8          |
+|    WebQ    |   QRC-20       | 0x6A5a7002E7204a89D788Bc909e74241731463B3B           |
+|     WebQ Router     |     WebQ Deployer     | 0x5648DFBDBd74F91D01B454aee0D11CEbc60810B4      |
+|     WebQ NFT     |    ERC721 SeaDrop Cloneable     | 0xa489518A42527fA60993a261795ccBE34202A7c8    |
+|      WebQ Special NFT      |     ERC721 SeaDrop Cloneable       | 0x5BAf794731834EC846bd0DDD46e98F153ad26E99 |
 
 ## Usage
 
